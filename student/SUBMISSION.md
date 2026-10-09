@@ -12,11 +12,26 @@
 
 ## Tóm tắt kết quả
 
-- `fusion_mode` (bắt buộc `compare`), `frames`, `segment`, `seed`:
-- `detection.precision`, `detection.recall`, `detection.tp/fp/fn`:
-- `tracking.lidar.rmse`, `matches`, `sum_sq_err`, `ghost_track_frames`, `missed_gt_frames`, `mean_confirmed_tracks`:
-- `tracking.fused.rmse`, `matches`, `sum_sq_err`, `ghost_track_frames`, `missed_gt_frames`, `mean_confirmed_tracks`:
+- `fusion_mode` (bắt buộc `compare`), `frames`, `segment`, `seed`: `compare`, `[0, 198]`, `training_segment-1005081002024129653_5313_150_5333_150_with_camera_labels.tfrecord`, `0`
+- `detection.precision`, `detection.recall`, `detection.tp/fp/fn`: 0.9701, 0.7004, tp = 519 / fp = 16 / fn = 222
+- `tracking.lidar.rmse`, `matches`, `sum_sq_err`, `ghost_track_frames`, `missed_gt_frames`, `mean_confirmed_tracks`: 0.1503 m, 502, 11.3436, 0, 239, 2.5226
+- `tracking.fused.rmse`, `matches`, `sum_sq_err`, `ghost_track_frames`, `missed_gt_frames`, `mean_confirmed_tracks`: 0.1359 m, 502, 9.2668, 0, 239, 2.5226
 - Giải thích khác biệt hai mode, đọc RMSE cùng số ghép và ghost/miss:
+  Hai mode có cùng `matches` = 502, `ghost_track_frames` = 0, `missed_gt_frames` = 239 và
+  `mean_confirmed_tracks` = 2.52; theo `grade_run.log`, số confirmed track và các trường
+  detection của từng frame giống hệt nhau giữa `lidar` và `fused`. Như vậy camera không làm
+  thay đổi vòng đời track (đúng thiết kế: chỉ LiDAR tạo/xác nhận/xoá), nên so sánh RMSE là
+  công bằng trên cùng một tập cặp ghép. Khác biệt duy nhất là sai số vị trí: `sum_sq_err` giảm từ
+  11.34 xuống 9.27, RMSE giảm 0.0145 m (0.1503 → 0.1359, khoảng −9.6%); fused có tổng sai số
+  bình phương nhỏ hơn ở 137/195 frame có cặp ghép. Camera hiệu chỉnh thêm hướng ngang/dọc của
+  các xe trong FOV camera FRONT, các xe ngoài FOV giữ nguyên như LiDAR-only.
+  Cả hai mode: `precision_track` = 502 / (502 + 0) = 1.00, `coverage` = 502 / 519 = 0.967,
+  `rmse_fused − rmse_lidar` = −0.0145 m ≤ 0.05 m. 239 lần miss gồm 222 xe mà detector không
+  phát hiện (`det_fn`) và 17 lần xe đã được detect nhưng track chưa đủ score để confirmed
+  (ví dụ frame 0–3 ở đầu segment: track đầu tiên chỉ confirmed từ frame 4).
+  Giới hạn: đo camera là tâm hộp 2D ground-truth cộng nhiễu (`--seed 0`), không phải camera
+  detector, nên mức cải thiện này là lạc quan và không chứng minh chất lượng một camera
+  perception thật; ngoài ra chỉ chạy 1 segment, 1 seed.
 
 Chạy từ root repo:
 
@@ -111,16 +126,16 @@ Liệt kê phần bonus đã làm, file bằng chứng trong `student/bonus/` v�
 Ghi rõ, kể cả khi không dùng ("Không dùng AI"). Xem [RULES.md](../RULES.md) mục 2.
 
 - Công cụ đã dùng (ChatGPT, Copilot, Claude, …): Claude (Claude Code, Anthropic)
-- Dùng cho phần nào (hàm, câu hỏi, debug): Claude viết code Part E–H trong `student/workspace/` (`kalman.py`, `camera_fusion.py`, `association.py`, `track_management.py`) và soạn nháp 6 câu giải thích E–H; tôi đã đọc lại và chỉnh theo hiểu biết của mình. Số liệu trong phần "Tóm tắt kết quả" lấy từ `metrics.json` của lần chạy của tôi.
+- Dùng cho phần nào (hàm, câu hỏi, debug): Claude viết code Part E–H trong `student/workspace/` (`kalman.py`, `camera_fusion.py`, `association.py`, `track_management.py`) và soạn nháp 6 câu giải thích E–H; tôi đã đọc lại và chỉnh theo hiểu biết của mình. Claude cũng chạy `pytest` và `fusion-run-lab` trên máy của tôi, rồi soạn phần "Tóm tắt kết quả"; mọi số liệu lấy nguyên từ `student/artifacts/metrics.json` và `grade_run.log` của lần chạy đó, không sửa tay.
 - Cách bạn đã kiểm tra lại (pytest, chạy Waymo, đối chiếu công thức): `pytest student/tests -q` (128 passed, không failed/xfailed); đối chiếu công thức với `docs/HUONG_DAN_KY_THUAT.md` và các gợi ý `# vi: TODO`; chạy `fusion-run-lab --fusion compare --seed 0` trên frame 0–198 và `python tools/check_submission.py`.
 
 ## Checklist nộp
 
-- [ ] **Part E–H** trong `workspace/` đã implement; `pytest student/tests -q` không còn `failed`/`xfailed`
-- [ ] Part A–D: không bắt buộc sửa (hoặc ghi chú nếu bạn đã sửa)
-- [ ] Lần chạy chấm điểm: `--fusion compare --seed 0`, `frame_start: 0`, `frame_end: 198`
-- [ ] Đã commit `student/artifacts/metrics*.json` và `student/artifacts/grade_run*.log` (không sửa tay)
-- [ ] Đã điền đủ file này, gồm khai báo AI
-- [ ] Không commit dữ liệu Waymo, weights, `paths.yaml`, API key
-- [ ] `python tools/check_submission.py` báo `KẾT QUẢ: SẴN SÀNG NỘP`
+- [x] **Part E–H** trong `workspace/` đã implement; `pytest student/tests -q` không còn `failed`/`xfailed`
+- [x] Part A–D: không bắt buộc sửa (hoặc ghi chú nếu bạn đã sửa)
+- [x] Lần chạy chấm điểm: `--fusion compare --seed 0`, `frame_start: 0`, `frame_end: 198`
+- [x] Đã commit `student/artifacts/metrics*.json` và `student/artifacts/grade_run*.log` (không sửa tay)
+- [x] Đã điền đủ file này, gồm khai báo AI
+- [x] Không commit dữ liệu Waymo, weights, `paths.yaml`, API key
+- [x] `python tools/check_submission.py` báo `KẾT QUẢ: SẴN SÀNG NỘP`
 - [ ] Đã push và nộp link repo + commit hash trên LMS ([hướng dẫn nộp](../SUBMISSION.md))
